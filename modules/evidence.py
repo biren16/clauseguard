@@ -5,7 +5,7 @@ from enum import Enum
 import json
 import re
 
-from google import genai
+from modules.evidence_model import EvidenceModel
 
 
 class EvidenceStatus(str, Enum):
@@ -397,11 +397,12 @@ Respond with ONLY valid JSON:
 def classify_clause(
     question: str,
     clause: dict,
-    client: genai.Client,
-    model: str = "gemini-3.6-flash",
+    model: EvidenceModel,
 ) -> EvidenceResult:
     """
     Classify one clause for evidence relevance.
+
+    The model provider is abstracted behind EvidenceModel.
 
     Any malformed or insufficiently grounded model response fails closed
     to IRRELEVANT.
@@ -431,16 +432,11 @@ def classify_clause(
     )
 
     try:
-        response = client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config={
-                "system_instruction": SYSTEM_PROMPT,
-                "response_mime_type": "application/json",
-            },
-        )
+        raw = model.generate(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=prompt,
+        ).strip()
 
-        raw = response.text.strip()
         parsed = json.loads(raw)
 
         # Strict enum parsing.
@@ -527,8 +523,8 @@ def classify_clause(
             covers="",
             evidence_quote="",
             reasoning=(
-                "INVALID_EVIDENCE: evidence quote could not be "
-                "verified against source clause"
+                "INVALID_EVIDENCE: quote could not be verified. "
+                f"Model attempted: {evidence_quote[:200]!r}"
             ),
         )
 
@@ -544,8 +540,7 @@ def classify_clause(
 def classify_candidates(
     question: str,
     candidates: list[dict],
-    client: genai.Client,
-    model: str = "gemini-3.6-flash",
+    model: EvidenceModel,
 ) -> list[EvidenceResult]:
     """
     Classify each candidate independently.
@@ -563,7 +558,6 @@ def classify_candidates(
         result = classify_clause(
             question=question,
             clause=clause,
-            client=client,
             model=model,
         )
 

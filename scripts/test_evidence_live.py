@@ -1,28 +1,42 @@
 import json
-import os
 
-from google import genai
+from dotenv import load_dotenv
 
 from modules.evidence import classify_candidates
+from modules.evidence_model import GroqEvidenceModel
 
 
-with open("data/knowledge_base.json", encoding="utf-8") as f:
-    clauses = json.load(f)
+load_dotenv(override=True)
+
+model = GroqEvidenceModel()
 
 
-client = genai.Client(
-    api_key=os.environ["GEMINI_API_KEY"]
-)
+with open("data/knowledge_base.json", "r", encoding="utf-8") as f:
+    knowledge_base = json.load(f)
+
+
+by_id = {
+    clause["id"]: clause
+    for clause in knowledge_base
+}
 
 
 TEST_CASES = [
     (
         "I started a new job. How long do I have to tell the office?",
-        ["§4.3.2", "§9.1.4", "§4.3.3"],
+        [
+            "§4.3.2",
+            "§4.3.3",
+            "§9.1.4",
+        ],
     ),
     (
         "How is the needs figure calculated for a household with a full-time student?",
-        ["§7.1.3", "§5.4"],
+        [
+            "§7.1.3",
+            "§5.4.1",
+            "§5.4.2",
+        ],
     ),
 ]
 
@@ -33,22 +47,23 @@ for question, clause_ids in TEST_CASES:
     print("=" * 80)
 
     candidates = [
-        clause
-        for clause in clauses
-        if clause["id"] in clause_ids
+        by_id[clause_id]
+        for clause_id in clause_ids
+        if clause_id in by_id
     ]
 
     results = classify_candidates(
         question=question,
         candidates=candidates,
-        client=client,
+        model=model,
     )
 
-    print("\nRESULTS:")
+    print("\nRESULTS:\n")
 
     for result in results:
-        print(f"\n{result.clause_id}")
+        print(result.clause_id)
         print(f"  status: {result.status.value}")
-        print(f"  covers: {result.covers}")
-        print(f"  quote:  {result.evidence_quote}")
+        print(f"  covers: {result.covers or '-'}")
+        print(f"  quote:  {result.evidence_quote or '-'}")
         print(f"  why:    {result.reasoning}")
+        print()
