@@ -5,6 +5,9 @@ __pycache__/
 # Virtual environment
 .venv/
 
+# Test cache
+.pytest_cache/
+
 # Environment variables / secrets
 .env
 
@@ -12,3 +15,6 @@ __pycache__/
 *.db
 *.sqlite
 *.sqlite3
+
+# Generated knowledge base
+data/knowledge_base.json
