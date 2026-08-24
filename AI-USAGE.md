@@ -359,6 +359,22 @@ The final repository was also verified as:
 The final evaluation harness contained 10 structured evaluation cases and
 was checked against the actual knowledge base.
 
+**Additional integration debugging**: Live CLI testing exposed an integration
+bug in conflict candidate construction that was not caught by the existing
+offline unit tests. Conflict analysis was receiving the short `evidence_quote`
+(a truncated LLM-generated snippet) rather than the full knowledge-base clause
+text, causing the `§4.3.2 ↔ §9.1.4` pair to be silently dropped before
+reaching the LLM conflict check. A second related regression was caused by
+Markdown `**bold**` markers around normative numbers in the source manual,
+which broke the word-boundary anchors in the numeric pre-filter patterns.
+
+Both regressions were fixed and covered by three new offline tests, bringing
+the final test count to 68 passing tests.
+
+This separation — offline mocked tests proving deterministic component
+behaviour, live CLI testing exposing boundary wiring bugs — was an important
+part of the verification process.
+
 ---
 
 ## 9. Scope and Honesty Note

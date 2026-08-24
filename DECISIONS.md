@@ -824,3 +824,62 @@ The goal is:
 
 > **"Answer when the evidence supports it, and explicitly refuse when it
 > does not."**
+
+---
+
+## 31. Evidence Quote vs. Full Clause Text in Conflict Analysis
+
+**Decision**: `evidence_quote` and the full knowledge-base clause text serve
+different purposes and must not be substituted for one another.
+
+`evidence_quote` is the validated excerpt retained for answer generation.
+Conflict analysis must operate on the complete knowledge-base clause text.
+
+**Rationale**:
+
+A short evidence quote may omit the normative language needed by the numeric
+and conflict pre-filter.
+
+Using the quote caused a real false negative during live CLI testing: `§9.1.4`
+failed to reach conflict analysis despite containing the relevant 30-day
+requirement, because the LLM-generated evidence quote `"time limit to report
+a change of circumstances (30 calendar days)"` contains no keyword context
+(`within`, `must`, `shall`, `required`) that the pre-filter patterns require.
+
+Conflict analysis therefore resolves evidence results back to the original
+knowledge-base clause via the `structural_clauses` list and uses the full
+clause text. It falls back to the evidence quote only if the clause ID is
+not found in the structural set, which should not occur in a correctly wired
+pipeline.
+
+**Safety implication**: Answer-generation evidence must remain tightly scoped
+to the verified quote. Conflict analysis requires sufficient source context
+to detect contradictions and must not be arbitrarily abbreviated.
+
+---
+
+## 32. Normalize Markdown Before Numeric Conflict Extraction
+
+**Decision**: Markdown formatting, including `**bold**`, must be removed
+before applying numeric-requirement extraction patterns.
+
+**Rationale**:
+
+The policy-manual source contains Markdown formatting around normative
+numbers. For example, `§9.1.4` contains `**30 calendar days**`. The `**`
+markers sit immediately adjacent to the digit and the unit, which breaks
+`\b` word-boundary anchors in the regex patterns.
+
+This caused `_extract_numeric_requirements` to return an empty set for
+`§9.1.4`, silently suppressing the `§4.3.2 ↔ §9.1.4` conflict pair before
+it ever reached the LLM.
+
+The fix strips `**` markers (and section reference markers) into a cleaned
+intermediate string before any pattern is applied. The original clause text
+is not modified in the knowledge base; normalization is applied locally
+within the extraction functions.
+
+**Safety implication**: Formatting normalization removes presentation markup
+but must not alter the substantive policy text. The normalization is
+intentionally narrow: only `**` bold markers and `§N.N.N` section reference
+identifiers are stripped, leaving all other text intact.

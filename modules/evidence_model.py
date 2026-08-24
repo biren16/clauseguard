@@ -87,7 +87,7 @@ class GroqEvidenceModel(EvidenceModel):
                 },
             ],
             "temperature": 0,
-            "max_tokens": 500,
+            "max_tokens": 2048,
         }
 
         if json_mode:
