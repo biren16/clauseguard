@@ -16,7 +16,7 @@ Multiple AI tools were used at different stages, not one tool throughout:
   actual repository behavior rather than being trusted by default. The exact
   model version used during those early design rounds was not consistently
   recorded, so it is not claimed here.
-- **Antigravity / OpenCode** — used later to finish implementation
+- **Antigravity** — used later to finish implementation
   (generation, grounding, pipeline wiring, CLI, evaluation harness, and
   related integration work) from a written handoff specification, after the
   evidence/conflict core had already been designed and partially verified.
@@ -199,7 +199,7 @@ This prevents structural metadata from creating false conflict candidates.
 
 ---
 
-## 4. Implementation Completion — Antigravity / OpenCode
+## 4. Implementation Completion — Antigravity
 
 Once the evidence and conflict modules were designed and partially verified
 against live model behavior, the remaining implementation was handed to a
@@ -214,16 +214,16 @@ The handoff included:
 * and instructions not to silently modify or dismiss safety-relevant
   fixtures merely because an initial model result disagreed with them.
 
-The coding agent was responsible for completing and integrating:
+The coding agent was responsible for completing and integrating the
+remaining implementation, including:
 
 * `modules/generation.py` — answer generation using validated retained
-  evidence only.
-* `modules/grounding.py` — deterministic citation-ID validation.
+  evidence only,
+* `modules/grounding.py` — deterministic citation-ID validation,
 * `modules/pipeline.py` — end-to-end orchestration with
-  `ANSWER`, `NO_EVIDENCE`, and `CONFLICT` outcomes.
-* `main.py` — CLI.
-* `scripts/run_eval.py` — evaluation harness.
-* ingestion and retrieval integration.
+  `ANSWER`, `NO_EVIDENCE`, and `CONFLICT` outcomes,
+* `main.py` — CLI,
+* `scripts/run_eval.py` — evaluation harness,
 * `modules/evidence_model.py` — provider abstraction and typed provider
   failures.
 
@@ -310,7 +310,7 @@ No fabricated policy detail was knowingly carried into the final system.
 | Conflict detection                  | Groq `openai/gpt-oss-20b`                  | Semantic conflict and citation-mismatch analysis                               |
 | Answer generation                   | Groq `openai/gpt-oss-20b`                  | Grounded answer generation from retained evidence                              |
 | Embeddings                          | `gemini-embedding-001` via Google AI       | Semantic retrieval                                                             |
-| Implementation assistance           | Antigravity / OpenCode                     | Final implementation, integration, testing, CLI, and evaluation harness        |
+| Implementation assistance           | Antigravity                                | Final implementation, integration, testing, CLI, and evaluation harness        |
 
 The Groq model is configurable through `GROQ_MODEL`.
 
@@ -417,7 +417,7 @@ The human developer remained responsible for:
 * deciding when an apparent model failure represented a real system bug,
 * and accepting the final implementation.
 
-Antigravity/OpenCode was therefore used as a coding and implementation
+Antigravity was therefore used as a coding and implementation
 agent, not as an autonomous authority over the project's architecture or
 policy interpretation.
 
