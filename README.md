@@ -23,11 +23,10 @@ pip install -r requirements.txt
 
 ### 2. Configure API keys
 
-Copy `.env.example` to `.env` and fill in your keys:
+Copy `.env.example` to `.env` and configure your Groq key (no Google/Gemini key needed for runtime):
 
-```
+```bash
 GROQ_API_KEY=gsk_...
-GEMINI_API_KEY=AI...
 GROQ_MODEL=openai/gpt-oss-20b      # optional, this is the default
 ```
 
@@ -43,13 +42,13 @@ PYTHONPATH=. python main.py "I started a new job. How long do I have to tell the
 PYTHONPATH=. python main.py
 ```
 
-### 4. Run the test suite (offline, no API keys needed)
+### 4. Run the test suite (offline, zero API keys needed)
 
 ```bash
-PYTHONPATH=. .venv/bin/python -m pytest -v tests/
+pytest -q
 ```
 
-### 5. Run the live evaluation harness (requires API keys)
+### 5. Run the live evaluation harness (requires Groq API key)
 
 ```bash
 PYTHONPATH=. .venv/bin/python scripts/run_eval.py
@@ -59,12 +58,12 @@ PYTHONPATH=. .venv/bin/python scripts/run_eval.py
 
 ## Architecture
 
-```
+```text
 User question
       │
       ▼
 ┌─────────────┐
-│  Retrieval  │  cosine similarity over pre-embedded KB + cross-ref expansion
+│  Retrieval  │  local deterministic BM25 ranking + cross-ref expansion
 └──────┬──────┘
        │  candidate clauses
        ▼
@@ -118,9 +117,9 @@ User question
 | Module | Purpose |
 |---|---|
 | `modules/parser.py` | Parse `data/policy-manual.md` into `Clause` objects |
-| `modules/ingest.py` | Embed each clause with `gemini-embedding-001` and write `knowledge_base.json` |
-| `modules/embeddings.py` | Google AI embedding adapter |
-| `modules/retriever.py` | Cosine-similarity semantic search + cross-reference expansion |
+| `modules/ingest.py` | Offline utility to embed clauses into `knowledge_base.json` |
+| `modules/embeddings.py` | Offline embedding adapter (not used during runtime Q&A) |
+| `modules/retriever.py` | Local deterministic BM25 ranking + cross-reference expansion |
 | `modules/evidence_model.py` | Abstract `EvidenceModel` interface + `GroqEvidenceModel` adapter |
 | `modules/evidence.py` | Evidence classification, quote verification, sufficiency, conflict expansion |
 | `modules/conflict.py` | Conflict detection: numeric pre-filter + LLM pair analysis |
@@ -134,7 +133,7 @@ User question
 
 ## Test Suite
 
-```
+```text
 tests/
 ├── test_conflict.py     24 tests  — numeric extraction, conflict analysis
 ├── test_embeddings.py    1 test   — embedding adapter
@@ -143,10 +142,10 @@ tests/
 ├── test_grounding.py     4 tests  — grounding validation (offline)
 ├── test_pipeline.py      4 tests  — end-to-end routing (offline / mocked)
 ├── test_parser.py        3 tests  — manual parsing
-└── test_retriever.py     1 test   — cross-reference expansion
+└── test_retriever.py     4 tests  — BM25 retrieval, cross-ref expansion, no credentials
 ```
 
-All 62 tests run fully offline (no API calls, no network).
+All 65 tests run fully offline (no API calls, no network, no credentials required).
 
 ---
 
@@ -155,6 +154,7 @@ All 62 tests run fully offline (no API calls, no network).
 See [DECISIONS.md](DECISIONS.md) for the full design rationale, including:
 
 - Fail-closed safety architecture
+- Local deterministic BM25 retrieval (zero runtime external embedding dependencies)
 - Citation-mismatch detection
 - Reverse-reference index
 - Day-1 scope limitations

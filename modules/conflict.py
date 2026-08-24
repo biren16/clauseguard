@@ -83,23 +83,32 @@ NUMBER_RE = re.compile(
     r"\b\d+(?:\.\d+)?\b"
 )
 
+# Matches markdown bold markers (**) used in the KB clause texts.
+# These must be stripped before applying word-boundary numeric patterns,
+# because ** adjacent to a digit breaks \b anchors.
+MARKDOWN_BOLD_RE = re.compile(r"\*\*")
+
+
+def _strip_markup(text: str) -> str:
+    """Remove markdown bold markers and section references."""
+    return SECTION_REFERENCE_RE.sub("", MARKDOWN_BOLD_RE.sub("", text))
+
 
 def _extract_numbers(text: str) -> set[str]:
     """
-    Extract explicit numeric values while ignoring section identifiers.
+    Extract explicit numeric values while ignoring section identifiers
+    and markdown bold markers.
 
     Example:
 
-        "See §4.3.2. Report within 30 days."
+        "See §4.3.2. Report within **30** days."
 
     becomes:
 
         {"30"}
     """
 
-    without_sections = SECTION_REFERENCE_RE.sub("", text)
-
-    return set(NUMBER_RE.findall(without_sections))
+    return set(NUMBER_RE.findall(_strip_markup(text)))
 
 
 # ---------------------------------------------------------------------------
@@ -123,9 +132,13 @@ def _extract_numeric_requirements(text: str) -> set[str]:
 
     This helps prevent structural clauses containing references or
     unrelated numbers from generating unnecessary LLM calls.
+
+    Markdown bold markers (**) are stripped before matching, because the
+    policy manual uses them (e.g., "**30 calendar days**") and they break
+    word-boundary anchors in the patterns.
     """
 
-    cleaned = SECTION_REFERENCE_RE.sub("", text)
+    cleaned = _strip_markup(text)
 
     patterns = [
         r"\bwithin\s+\d+(?:\.\d+)?\s+(?:calendar\s+)?days?\b",
@@ -158,16 +171,34 @@ def build_candidates(
     structural_clauses: list[dict],
 ) -> list[ConflictCandidate]:
     """
-    Merge retained evidence and structural conflict clauses.
+    Merge retained evidence and structural conflict clauses into
+    ConflictCandidate objects for numeric pre-filtering and LLM analysis.
 
     Retained evidence:
-        use verified evidence_quote.
+        Use the full KB clause text for numeric analysis and LLM prompts.
+        The evidence_quote is a short, LLM-generated snippet — it may not
+        contain the keyword context (within/must/shall/required) that the
+        numeric pre-filter patterns require, causing the pair to be silently
+        dropped before it ever reaches the LLM.
+
+        Full KB text is looked up from structural_clauses (the evidence
+        clauses have conflict_reason="evidence" there).  If the clause ID is
+        not found — which should not happen in a correctly wired pipeline —
+        we fall back to the evidence_quote as a defensive measure.
 
     Structural clauses:
-        use original KB text.
+        Use original KB text.
 
     Duplicate clause IDs are removed.
     """
+
+    # Build a lookup of full KB clause texts from structural_clauses.
+    # structural_clauses contains the retained evidence clauses (with
+    # conflict_reason="evidence") plus all structurally expanded clauses.
+    full_text_by_id: dict[str, str] = {
+        clause["id"]: clause["text"]
+        for clause in structural_clauses
+    }
 
     candidates: list[ConflictCandidate] = []
 
@@ -177,10 +208,17 @@ def build_candidates(
         if not quote:
             continue
 
+        # Prefer the full KB clause text for conflict numeric analysis.
+        # Fall back to the evidence_quote only if the KB entry is missing.
+        conflict_text = full_text_by_id.get(
+            result.clause_id,
+            quote,
+        )
+
         candidates.append(
             ConflictCandidate(
                 clause_id=result.clause_id,
-                text=quote,
+                text=conflict_text,
                 source="evidence",
             )
         )

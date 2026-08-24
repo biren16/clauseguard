@@ -600,19 +600,33 @@ It also allows the same pipeline to be exercised by:
 
 ---
 
-## 22. Offline Knowledge Base and Retrieval
+## 22. Local Deterministic Retrieval and Single-Provider Runtime
 
-**Decision**: The system uses the pre-computed knowledge base and embeddings
-rather than generating embeddings for every query.
+**Decision**: The runtime Q&A pipeline uses a local deterministic BM25 lexical
+retriever and structural cross-reference expansion over the parsed knowledge
+base, requiring zero external embedding API calls or Google Gemini runtime
+credentials.
 
-The knowledge base contains parsed policy clauses with structural metadata
-and pre-computed embeddings used for retrieval.
+The knowledge base contains parsed policy clauses with structural metadata,
+section titles, and cross-reference links.
 
 **Rationale**:
 
-Query-time embedding generation adds latency and external dependency
-requirements. Pre-computation is sufficient for the hackathon's corpus and
-makes retrieval predictable.
+The initial implementation used Google Gemini embeddings for semantic query
+retrieval. Live CLI testing exposed a secondary external credential dependency
+(`GEMINI_API_KEY`) that caused runtime authentication failures when only the
+primary LLM provider (Groq) was configured.
+
+Groq is an inference provider that does not offer a standalone dense vector
+embedding endpoint compatible with 3072-dimensional Gemini embeddings. Rather
+than introducing another external embedding service or relying on fragile
+multi-provider runtime credentials, the retrieval stage was transitioned to
+a self-contained, deterministic BM25 ranker in pure Python.
+
+Combined with forward and reverse cross-reference expansion, this local
+retrieval path reliably discovers both direct answer evidence and structurally
+connected conflict candidates while keeping the runtime completely single-provider
+(Groq only).
 
 ---
 
@@ -746,7 +760,7 @@ The following limitations are intentional and documented rather than hidden.
 | `covers` comparison        | Literal normalized string comparison rather than semantic deduplication   |
 | Conflict scope             | Conflict detection currently focuses on numeric disagreements and citation-mismatch patterns |
 | Full semantic grounding    | Deferred; grounding currently validates citation-ID membership            |
-| Knowledge-base embeddings  | Pre-computed rather than generated at query time                          |
+| Retrieval mechanism        | Deterministic local BM25 ranking + cross-reference expansion (no runtime external embedding calls) |
 | Conflict model calls       | Limited by `max_model_calls` to protect API budget                        |
 | Qualitative contradictions | Not guaranteed to be detected when no numeric/citation pattern is present |
 

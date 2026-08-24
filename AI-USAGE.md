@@ -309,15 +309,16 @@ No fabricated policy detail was knowingly carried into the final system.
 | Evidence classification             | Groq `openai/gpt-oss-20b` via `GROQ_MODEL` | Structured JSON classification                                                 |
 | Conflict detection                  | Groq `openai/gpt-oss-20b`                  | Semantic conflict and citation-mismatch analysis                               |
 | Answer generation                   | Groq `openai/gpt-oss-20b`                  | Grounded answer generation from retained evidence                              |
-| Embeddings                          | `gemini-embedding-001` via Google AI       | Semantic retrieval                                                             |
+| Retrieval                           | Local BM25 ranking + cross-reference graph | Deterministic pure-Python retrieval (no runtime external embedding API calls)  |
+| Offline Embeddings (initial design) | `gemini-embedding-001` via Google AI       | Used in initial design/ingestion; replaced with local BM25 for runtime          |
 | Implementation assistance           | Antigravity                                | Final implementation, integration, testing, CLI, and evaluation harness        |
 
 The Groq model is configurable through `GROQ_MODEL`.
 
-The final system therefore uses two external model providers:
+The final runtime system requires only one external AI provider:
 
-* Groq for language-model inference.
-* Google AI for embeddings.
+* Groq for language-model inference (`GROQ_API_KEY`).
+* Zero external runtime credentials needed for retrieval.
 
 Model choices were driven by the requirements of the 24-hour hackathon,
 including structured-output support, speed, availability, retrieval

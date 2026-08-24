@@ -702,3 +702,163 @@ def test_detect_conflicts_respects_model_call_budget():
     )
 
     assert model.calls == 1
+
+
+# ---------------------------------------------------------------------------
+# Regression: markdown bold (**) in KB clause text must not break extraction
+# ---------------------------------------------------------------------------
+
+def test_markdown_bold_does_not_break_number_extraction():
+    """
+    §9.1.4's KB text contains '**30 calendar days**'.
+
+    The ** markers were previously placed immediately adjacent to the
+    digit, breaking the \\b word-boundary anchor in the regex patterns
+    and causing _extract_numbers / _extract_numeric_requirements to
+    return empty sets.
+
+    After the fix, the ** markers are stripped before matching.
+    """
+    # Exact text from the KB for §9.1.4
+    text = (
+        "Where an overpayment has arisen from a change of circumstances, "
+        "and the recipient reported the change within the "
+        "**30 calendar days** required under §4.3, no overpayment "
+        "shall be established in respect of any period before the date "
+        "on which the Department was in a position to act on the report."
+    )
+
+    assert "30" in _extract_numbers(text)
+    assert _extract_numeric_requirements(text)  # must be non-empty
+
+
+def test_markdown_bold_clause_reaches_conflict_candidate_stage():
+    """
+    When §9.1.4's KB text is used as the conflict candidate text, the
+    pair with §4.3.2 must survive the numeric pre-filter and reach the
+    LLM call stage.
+
+    Before the fix this produced 0 pairs because ** broke the patterns.
+    """
+    # §4.3.2 full KB text (no markdown bold around the number here,
+    # but let's use the actual form with bold to be realistic)
+    clause_432_text = (
+        "A recipient must report any change in household composition, "
+        "income, address, or the circumstances of any household member "
+        "within **10 calendar days** of the change occurring, or within "
+        "10 calendar days of the recipient becoming aware of the change, "
+        "whichever is later."
+    )
+    # §9.1.4 full KB text with bold
+    clause_914_text = (
+        "Where an overpayment has arisen from a change of circumstances, "
+        "and the recipient reported the change within the "
+        "**30 calendar days** required under §4.3, no overpayment "
+        "shall be established in respect of any period before the date "
+        "on which the Department was in a position to act on the report."
+    )
+
+    candidates = [
+        ConflictCandidate(
+            clause_id="§4.3.2",
+            text=clause_432_text,
+            source="evidence",
+        ),
+        ConflictCandidate(
+            clause_id="§9.1.4",
+            text=clause_914_text,
+            source="evidence",
+        ),
+    ]
+
+    pairs = find_numeric_disagreement_pairs(candidates)
+
+    assert len(pairs) == 1
+    ids = {pairs[0][0].clause_id, pairs[0][1].clause_id}
+    assert ids == {"§4.3.2", "§9.1.4"}
+
+
+# ---------------------------------------------------------------------------
+# Regression: evidence_quote snippet must not replace full KB text in conflict
+# ---------------------------------------------------------------------------
+
+def test_build_candidates_uses_full_kb_text_not_evidence_quote():
+    """
+    build_candidates must look up full KB clause text from structural_clauses
+    for evidence candidates, NOT use the truncated evidence_quote snippet.
+
+    The evidence_quote is a short LLM-generated snippet for answer generation.
+    It may not contain the keyword context (within/must/required) that the
+    numeric pre-filter patterns need.
+
+    Example: the LLM might return:
+        "time limit to report a change of circumstances (30 calendar days)"
+    This passes no numeric requirement pattern — so without the fix, the pair
+    is silently dropped before the LLM conflict call.
+    """
+    from modules.conflict import build_candidates
+
+    # Simulate the short evidence_quote the LLM actually generated
+    short_quote_914 = "time limit to report a change of circumstances (30 calendar days)"
+
+    # Simulate what structural_clauses contains (full KB texts)
+    structural_clauses = [
+        {
+            "id": "§4.3.2",
+            "text": (
+                "A recipient must report any change in household composition, "
+                "income, address, or circumstances within 10 calendar days."
+            ),
+            "cross_references": [],
+            "conflict_reason": "evidence",
+        },
+        {
+            "id": "§9.1.4",
+            "text": (
+                "Where an overpayment has arisen from a change of "
+                "circumstances, and the recipient reported the change within "
+                "the **30 calendar days** required under §4.3, no overpayment "
+                "shall be established."
+            ),
+            "cross_references": ["§4.3"],
+            "conflict_reason": "evidence",
+        },
+    ]
+
+    evidence = [
+        EvidenceResult(
+            clause_id="§4.3.2",
+            status=EvidenceStatus.SUPPORTED,
+            covers="reporting deadline",
+            evidence_quote="reporting a change in income within 10 calendar days",
+            reasoning="",
+        ),
+        EvidenceResult(
+            clause_id="§9.1.4",
+            status=EvidenceStatus.SUPPORTED,
+            covers="30 day limit",
+            evidence_quote=short_quote_914,
+            reasoning="",
+        ),
+    ]
+
+    candidates = build_candidates(
+        evidence=evidence,
+        structural_clauses=structural_clauses,
+    )
+
+    # Candidates should use full KB text, not the snippets
+    by_id = {c.clause_id: c for c in candidates}
+    assert "§4.3.2" in by_id
+    assert "§9.1.4" in by_id
+
+    # The §9.1.4 candidate text must be the full KB text, not the short quote
+    assert short_quote_914 not in by_id["§9.1.4"].text
+    assert "30 calendar days" in by_id["§9.1.4"].text
+    assert "overpayment" in by_id["§9.1.4"].text
+
+    # Most importantly: the pair must now survive the pre-filter
+    pairs = find_numeric_disagreement_pairs(candidates)
+    assert len(pairs) == 1
+    ids = {pairs[0][0].clause_id, pairs[0][1].clause_id}
+    assert ids == {"§4.3.2", "§9.1.4"}
