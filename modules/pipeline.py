@@ -50,7 +50,7 @@ def run_pipeline(
     question: str,
     model: EvidenceModel,
     knowledge_base: list[dict] | None = None,
-    top_k: int = 15,
+    top_k: int = 8,
     pre_retrieved_candidates: list[dict] | None = None,
 ) -> PipelineResult:
     """

@@ -49,7 +49,7 @@ class GroqEvidenceModel(EvidenceModel):
         self,
         api_key: str | None = None,
         model: str | None = None,
-        max_retries: int = 0,
+        max_retries: int = 3,
         timeout: float = 30.0,
     ):
         self.api_key = api_key or os.environ["GROQ_API_KEY"]

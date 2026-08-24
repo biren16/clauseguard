@@ -137,7 +137,7 @@ def main() -> None:
         print(red("  ERROR: GROQ_API_KEY is not set. Please check your .env file."))
         sys.exit(1)
 
-    model = GroqEvidenceModel(max_retries=0)
+    model = GroqEvidenceModel()
 
     print(dim("  Loading knowledge base..."), end="", flush=True)
     knowledge_base = load_knowledge_base()

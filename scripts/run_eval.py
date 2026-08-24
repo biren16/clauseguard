@@ -117,7 +117,7 @@ def main() -> None:
     print(f"  {len(EVAL_CASES)} questions")
     print("=" * 72)
 
-    model = GroqEvidenceModel(max_retries=0)
+    model = GroqEvidenceModel()
 
     print("  Loading knowledge base...", end="", flush=True)
     knowledge_base = load_knowledge_base()
