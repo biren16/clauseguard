@@ -20,11 +20,15 @@ Multiple AI tools were used at different stages, not one tool throughout:
   (generation, grounding, pipeline wiring, CLI, evaluation harness, and
   related integration work) from a written handoff specification, after the
   evidence/conflict core had already been designed and partially verified.
+- **opencode (model `ox-alpha`)** — implemented the temporal surprise feature
+  (deterministic handling of Amendment No. 2026-01) from a detailed written
+  specification, after the Day-1 pipeline had been completed and verified.
 
-The human developer was directly involved throughout the first two stages
-and monitored the coding-agent work in the final stage. The AI tools were
-used as engineering and reasoning aids; their proposals and generated code
-were not treated as automatically correct.
+The human developer was directly involved throughout the design and review
+stages and monitored both coding-agent phases. The AI tools were used as
+engineering and reasoning aids; their proposals and generated code were not
+treated as automatically correct, and none of them independently owned the
+architecture or the policy decisions.
 
 ---
 
@@ -311,7 +315,8 @@ No fabricated policy detail was knowingly carried into the final system.
 | Answer generation                   | Groq `openai/gpt-oss-20b`                  | Grounded answer generation from retained evidence                              |
 | Retrieval                           | Local BM25 ranking + cross-reference graph | Deterministic pure-Python retrieval (no runtime external embedding API calls)  |
 | Offline Embeddings (initial design) | `gemini-embedding-001` via Google AI       | Used in initial design/ingestion; replaced with local BM25 for runtime          |
-| Implementation assistance           | Antigravity                                | Final implementation, integration, testing, CLI, and evaluation harness        |
+| Implementation assistance (Day-1)  | Antigravity                                | Day-1 completion: generation, grounding, pipeline wiring, CLI, evaluation harness |
+| Temporal feature implementation    | opencode (`ox-alpha`)                      | Deterministic Amendment No. 2026-01 handling from a written specification       |
 
 The Groq model is configurable through `GROQ_MODEL`.
 
@@ -343,18 +348,24 @@ This keeps the test suite:
 
 Live Groq calls were reserved for targeted integration testing.
 
-The final verification reported:
+Test counts evolved with the project; the milestones were:
 
 ```text
-62 passed, 1 warning
+62 passed, 1 warning   — after the core evidence/conflict suites
+                         (early verification milestone, pre-dating the
+                         integration work described below)
+68 passed              — after the integration-bug fixes below and their
+                         regression tests (completed Day-1 pipeline)
+128 passed             — final state: Day-1 suite plus 49 temporal unit
+                         tests and 11 temporal integration tests (§11)
 ```
 
-The final repository was also verified as:
+The current, final offline suite is therefore **128 passing tests**.
 
-* working tree clean,
-* `main` synchronized with `origin/main`,
-* all implementation commits pushed,
-* no unpushed commits remaining.
+At the end of the Antigravity implementation phase, the repository was also
+verified as working-tree clean with `main` synchronized to `origin/main` and
+all implementation commits pushed. The subsequent temporal-feature work (§11)
+intentionally remains uncommitted pending the project freeze.
 
 The final evaluation harness contained 10 structured evaluation cases and
 was checked against the actual knowledge base.
@@ -389,7 +400,10 @@ Examples included:
   contradiction,
 * unsafe boolean coercion,
 * an exception handler capable of masking a real interface bug,
-* and an outright fabricated policy detail.
+* an outright fabricated policy detail,
+* conflict analysis receiving a short `evidence_quote` instead of the full
+  knowledge-base clause text, silently dropping the central conflict pair,
+* and Markdown bold markers breaking numeric-requirement extraction.
 
 These failures were caught by comparing AI proposals against:
 
@@ -440,3 +454,66 @@ policy interpretation.
 
 The final ClauseGuard system represents a human-directed development
 process assisted by multiple AI tools at different stages.
+---
+
+## 11. Temporal Surprise Feature — opencode (ox-alpha), from a Written Specification
+
+The final surprise feature — deterministic temporal handling of
+Amendment No. 2026-01 — was implemented by the opencode agent
+(model `ox-alpha`) working from a detailed written specification supplied by
+the human developer.
+
+The specification's core contract, which the implementation follows:
+temporal resolution is a deterministic layer above the unchanged pipeline;
+the LLM never decides which policy version applies; historical and amended
+texts are never merged into synthetic conditional clauses; PRE- and
+POST-AMENDMENT are independent branches with isolated evidence, citations,
+conflict results and grounding; conflict detection remains temporal-agnostic;
+and undated amendment-sensitive questions may resolve to TEMPORAL_AMBIGUITY
+instead of silently assuming today's policy.
+
+What the agent did:
+
+- audited the repository and ran the existing 68-test baseline before making
+  changes;
+- rewrote `modules/policy_versioning.py` as a deterministic temporal layer:
+  structured amendment operations with explicit temporal anchors, validated
+  date extraction, input precedence, and in-memory effective policy views
+  that never mutate the knowledge base on disk;
+- integrated temporal branching into `modules/pipeline.py` while leaving the
+  existing retrieval, evidence, sufficiency, conflict, generation and
+  grounding stages unchanged; conflict detection remains temporal-agnostic;
+- updated the CLI (`--date`, deterministic precedence, clear refusal on
+  conflicting temporal inputs) and added a deterministic renderer for
+  TEMPORAL_AMBIGUITY responses composed only from branch results and
+  amendment metadata;
+- added 49 deterministic unit tests for the temporal layer and 11 offline
+  integration tests proving branch isolation, conflict isolation and
+  grounding isolation;
+- restored the four legacy pipeline tests to their original question strings,
+  pinning the historical policy state explicitly via a documented parameter
+  instead of the previously committed question-text mutation;
+- corrected DECISIONS.md §33, whose previous text described an approach
+  (synthesizing conditional clauses into the evidence corpus) that was
+  rejected by the specification and is not what the implementation does;
+- updated README.md to document temporal behavior, outcomes and test counts.
+
+Verification status at handoff:
+
+- full offline suite: 128 passed (the original 68 remain intact apart from
+  the documented explicit-date pinning described above);
+- live CLI verification: the historical-date scenario produced CONFLICT
+  (§4.3.2 ↔ §9.1.4, 10 vs 30 days) and the amended-date scenario produced a
+  grounded ANSWER (14 calendar days, citing §4.3.2);
+- live verification continued on `openai/gpt-oss-120b` after the
+  `openai/gpt-oss-20b` free-tier daily token quota was exhausted mid-session
+  (the temporal layer itself is model-independent): the undated reporting
+  question produced TEMPORAL_AMBIGUITY with an independently evaluated PRE
+  branch (CONFLICT) and POST branch (grounded ANSWER), and an unaffected
+  appeals question produced a normal single-version ANSWER with no temporal
+  complexity.
+
+The human developer reviewed the agent's work against the written
+specification; consistent with the rest of this log, agent output was
+treated as a proposal subject to source checks and tests rather than as
+authoritative.
