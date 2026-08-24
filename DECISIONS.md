@@ -119,7 +119,7 @@ evidence quote can be verified against the original clause text.
 
 If the quote cannot be verified, the result is downgraded to `IRRELEVANT`.
 
-The comparison tolerates harmless formatting differences such as:
+The normalized evidence quote must occur within the normalized source clause text. The comparison tolerates harmless formatting differences such as:
 
 * whitespace,
 * line breaks,
@@ -282,7 +282,7 @@ mismatch rather than redefining the fixture as non-conflicting.
 **Decision**: Candidate conflict pairs are first filtered using deterministic
 numeric requirement extraction before an LLM conflict judgement is requested.
 
-The pre-filter looks for substantive normative requirements such as:
+The pre-filter looks for recognizable numeric requirement patterns such as:
 
 ```text
 within 10 calendar days
@@ -606,7 +606,7 @@ It also allows the same pipeline to be exercised by:
 rather than generating embeddings for every query.
 
 The knowledge base contains parsed policy clauses with structural metadata
-and pre-computed retrieval information.
+and pre-computed embeddings used for retrieval.
 
 **Rationale**:
 
@@ -671,8 +671,8 @@ The corpus was checked directly.
 
 §9.1.4 refers to "30 calendar days required under §4.3."
 
-The system is expected to detect this as a citation-mismatch conflict and
-refuse to provide a confident answer.
+The system detects this as a citation-mismatch conflict and refuses to
+provide a confident answer.
 
 ### Fixture B — Full-Time Student
 
@@ -681,8 +681,8 @@ refuse to provide a confident answer.
 The inspected candidate clauses do not provide the missing student
 needs-calculation rule.
 
-The system is therefore expected to route the query to `NO_EVIDENCE` rather
-than inventing the missing rule.
+The system routes the query to `NO_EVIDENCE` rather than inventing the
+missing rule.
 
 **Rationale**: These fixtures test two different safety properties:
 
@@ -744,7 +744,7 @@ The following limitations are intentional and documented rather than hidden.
 | Limitation                 | Current behavior                                                          |
 | -------------------------- | ------------------------------------------------------------------------- |
 | `covers` comparison        | Literal normalized string comparison rather than semantic deduplication   |
-| Conflict scope             | Primarily numeric/citation-mismatch conflict detection                    |
+| Conflict scope             | Conflict detection currently focuses on numeric disagreements and citation-mismatch patterns |
 | Full semantic grounding    | Deferred; grounding currently validates citation-ID membership            |
 | Knowledge-base embeddings  | Pre-computed rather than generated at query time                          |
 | Conflict model calls       | Limited by `max_model_calls` to protect API budget                        |
