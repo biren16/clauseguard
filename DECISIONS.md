@@ -2,12 +2,21 @@
 
 This document records the principal architectural and engineering decisions
 made during the development of ClauseGuard, the reasoning behind them, and
-the limitations that remain intentionally within the Day-1 scope.
+the limitations that remain intentionally within scope.
 
 ClauseGuard is designed as a fail-closed policy question-answering system.
 Its objective is not to maximize the number of questions answered, but to
 prevent the system from presenting unsupported, contradictory, or
 ungrounded policy interpretations as authoritative answers.
+
+The record covers two development phases and is best read in order:
+
+* **Sections 1–32 (Day-1 core):** the verified safety pipeline — retrieval,
+  evidence classification, sufficiency, structural expansion, conflict
+  detection, grounded generation, and grounding validation.
+* **Section 33 (Day-2 temporal layer):** deterministic handling of
+  Amendment No. 2026-01 as a resolution layer *above* the unchanged Day-1
+  pipeline.
 
 ---
 
@@ -547,9 +556,16 @@ The primary outcomes are:
 ANSWER
 NO_EVIDENCE
 CONFLICT
+TEMPORAL_AMBIGUITY
 ```
 
 An unresolved conflict is handled as a blocking safety condition.
+
+`TEMPORAL_AMBIGUITY` (introduced with the temporal layer, §33) is a distinct
+deterministic state, not a form of conflict or insufficient evidence: the
+applicable policy version depends on temporal context the user did not
+provide, and the independently evaluated versions lead to materially
+different safe outcomes.
 
 **Rationale**: A policy assistant should be allowed to say:
 
@@ -558,6 +574,10 @@ An unresolved conflict is handled as a blocking safety condition.
 or:
 
 > "The policy corpus contains conflicting provisions."
+
+or:
+
+> "The answer depends on which policy version applies; provide the date."
 
 rather than inventing a resolution.
 
@@ -587,6 +607,10 @@ pipeline outcome
 ```
 
 The CLI is kept separate from the pipeline itself.
+
+A deterministic temporal-resolution layer sits **above** this pipeline and
+decides which effective policy state(s) each question is evaluated against;
+see §33. The stages below are temporal-agnostic.
 
 **Rationale**: This makes individual safety gates independently testable and
 prevents presentation logic from becoming entangled with policy reasoning.
@@ -712,7 +736,10 @@ actual corpus.
 
 During development, an AI-generated project-plan version introduced a
 specific policy amendment number and effective date that was not supported by
-the manual.
+the manual. (This predated the later, real Amendment No. 2026-01: the
+invented amendment was rejected because no such provision existed in the
+corpus at the time, and the eventual real amendment was added to the corpus
+only through the verified source file and the tested temporal layer, §33.)
 
 The claim was rejected after checking the source.
 
@@ -754,6 +781,8 @@ verification rather than trust in model confidence.
 ## 28. Day-1 Scope Limitations
 
 The following limitations are intentional and documented rather than hidden.
+Rows 1–6 belong to the Day-1 core; the final row belongs to the temporal
+layer (§33) and is repeated there in full detail.
 
 | Limitation                 | Current behavior                                                          |
 | -------------------------- | ------------------------------------------------------------------------- |
@@ -763,6 +792,7 @@ The following limitations are intentional and documented rather than hidden.
 | Retrieval mechanism        | Deterministic local BM25 ranking + cross-reference expansion (no runtime external embedding calls) |
 | Conflict model calls       | Limited by `max_model_calls` to protect API budget                        |
 | Qualitative contradictions | Not guaranteed to be detected when no numeric/citation pattern is present |
+| Undated temporal sensitivity | Bounded BM25+cross-ref probe over the historical view (heuristic, not a complete detector; see §33) |
 
 These limitations should not be presented as capabilities the system does
 not actually provide.
@@ -793,6 +823,13 @@ Tests specifically protect previously discovered failure modes, including:
 * grounding citation membership;
 * and pipeline outcome routing.
 
+The temporal layer (§33) extends the same philosophy with regression guards
+for: boundary-date resolution (2026-03-01 inclusive), conflicting temporal
+inputs, PRE/POST effective-view values against the real corpus (an
+amendment-operation drift guard), branch isolation (no evidence or prompts
+crossing versions), failed-branch non-rescue, and the collapse rules for
+undated branch aggregation.
+
 **Rationale**: A test can itself encode the wrong assumption. Therefore,
 important fixtures were checked against the actual policy manual rather than
 being trusted merely because the test passed.
@@ -814,6 +851,9 @@ This principle appears throughout the architecture:
 * unresolved conflict checks block confident answers;
 * unsupported citations fail grounding;
 * provider failures remain visible;
+* contradictory temporal inputs are refused instead of silently resolved;
+* undated amendment-sensitive questions evaluate independent policy branches
+  rather than assuming today's policy (§33);
 * and AI-generated claims are checked against the source corpus.
 
 The goal is therefore not:
@@ -883,3 +923,107 @@ within the extraction functions.
 but must not alter the substantive policy text. The normalization is
 intentionally narrow: only `**` bold markers and `§N.N.N` section reference
 identifiers are stripped, leaving all other text intact.
+
+---
+
+## 33. Deterministic Temporal Policy Resolution
+
+**Decision**: Amendment No. 2026-01 is handled by a dedicated, deterministic
+temporal layer (`modules/policy_versioning.py`) that sits **above** the
+existing ClauseGuard pipeline and decides exactly one question:
+
+> Which effective policy state(s) should be evaluated?
+
+The amendment is encoded as structured operations (text substitutions plus a
+clause insertion) applied to in-memory copies of the knowledge base,
+producing two internally consistent views. The base knowledge base remains
+the source representation and is never mutated — neither in memory nor in
+the `data/knowledge_base.json` file on disk:
+
+```text
+BASE KB + amendment ops
+        ↓ deterministic resolver (no LLM)
+PRE-AMENDMENT view      POST-AMENDMENT view
+        ↓                       ↓
+   existing pipeline      existing pipeline
+```
+
+Each branch owns its own effective knowledge base, retrieval, evidence
+classification, sufficiency decision, structural expansion, conflict
+analysis, generation and grounding. Evidence, citations, conflict results,
+and grounding are never merged across branches; new clauses introduced by the
+amendment (e.g. §10.5.3A) keep their canonical IDs and simply do not exist in
+the pre-amendment view.
+
+**Temporal resolution precedence** (all deterministic):
+
+1. explicit `--date` value;
+2. explicit dates extracted from the question text;
+3. no temporal information.
+
+If inputs disagree (`--date` vs. question date, or multiple question dates
+selecting different versions), the system refuses with a clear input error
+instead of silently choosing one.
+
+**Temporal anchors**: the transitional provisions of the amendment attach
+different anchor events to different amendments — reporting periods depend on
+the date the change of circumstances occurred; the earnings disregard,
+income thresholds and sanctions depend on the determination date. Both
+anchor classes currently share the same threshold date (1 March 2026), so a
+supplied date resolves deterministically without deciding which kind of date
+it is. The anchors are still modeled explicitly because they are part of the
+amendment's semantics and are surfaced in ambiguity responses.
+
+**Undated questions never guess "today's policy"**: when an undated question
+touches amendment-changed provisions, both policy states are evaluated fully
+and independently. The combined result is TEMPORAL_AMBIGUITY only when the
+branches do not agree; if both versions produce the same safe outcome (for
+example both refuse for insufficient evidence, or produce materially the same
+grounded answer), that shared outcome is returned directly.
+TEMPORAL_AMBIGUITY therefore keeps a narrow meaning: *the policy answer
+depends on temporal context the user did not provide, and the relevant
+policy states lead to materially different outcomes.* A difference between
+policy VERSIONS is never treated as a CONFLICT.
+
+Ordinary questions whose retrieved candidates do not reach any
+amendment-changed clause flow through the normal single-version pipeline
+with zero temporal complexity.
+
+**Rationale**: An LLM must never decide which policy version applies, and
+historical and amended texts must never be merged into synthetic conditional
+clauses — a mixed representation would expose several numeric requirements
+to the conflict detector simultaneously and would destroy the distinction
+between source evidence and derived interpretation.
+
+An earlier draft of this section described surfacing "conditional logic as
+part of the verified clause text". That approach was rejected: it would have
+synthesized conditional clauses not present in either source. The
+implemented design evaluates separate effective views instead.
+
+**Safety implications**:
+
+- Conflict detection remains temporal-agnostic: it receives one internally
+  consistent effective state per run (PRE: 10 vs 30 days → conflict;
+  POST: 14 vs 14 days → no conflict) and never sees version mixing.
+- Generation remains evidence-only: each branch's generator receives only
+  verified quotes from that branch's retained evidence — no amendment diffs,
+  no other-version clauses, no temporal instructions.
+- Grounding stays branch-specific: every branch's citations must belong to
+  that branch's own retained evidence, and a failed branch is never rescued
+  using the other branch.
+- The final ambiguity response is composed by a deterministic renderer from
+  the branch results and amendment metadata; no LLM composes it.
+
+**Detection limitation (honest scope)**: for undated questions, deciding
+whether the question "touches" amendment-changed provisions is itself a
+deterministic local probe — BM25 top-k retrieval plus cross-reference
+expansion over the historical view, intersected with the amendment-changed
+clause set. This probe is a bounded performance heuristic, not a complete
+detector. It cannot see clauses that exist only in the amended state (e.g.
+§10.5.3A), and it misses historical clauses that rank beyond the retrieval
+window without structural links (e.g. §6.6.1, which nothing references). A
+missed question is evaluated against the historical state alone; observed
+and analyzed degradation paths are conservative (refusal, or a grounded
+answer from a single internally consistent state) and never bypass quote
+verification, conflict detection, or grounding validation.
+
