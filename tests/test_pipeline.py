@@ -14,6 +14,16 @@ from modules.conflict import ConflictStatus
 from modules.evidence_model import EvidenceModel
 from modules.pipeline import PipelineOutcome, run_pipeline
 
+# These tests verify single-version pipeline ROUTING (answer / conflict /
+# no-evidence / grounding-failure). Since Amendment No. 2026-01, an UNDATED
+# reporting question is amendment-sensitive and routes to TEMPORAL_AMBIGUITY
+# (see tests/test_temporal_pipeline.py). Each test therefore pins the
+# historical policy state explicitly via run_pipeline's temporal input —
+# the assertions and fixture semantics are otherwise unchanged.
+from datetime import date as _date
+
+_EXPLICIT_HISTORICAL_DATE = _date(2025, 1, 1)
+
 
 # ---------------------------------------------------------------------------
 # Fake model
@@ -150,6 +160,7 @@ def test_pipeline_returns_answer_when_evidence_sufficient():
         model=model,
         knowledge_base=_KB,
         pre_retrieved_candidates=_CANDIDATES,
+        explicit_date=_EXPLICIT_HISTORICAL_DATE,
     )
 
     assert result.outcome == PipelineOutcome.ANSWER
@@ -173,6 +184,7 @@ def test_pipeline_returns_no_evidence_when_all_irrelevant():
         model=model,
         knowledge_base=_KB,
         pre_retrieved_candidates=_CANDIDATES,
+        explicit_date=_EXPLICIT_HISTORICAL_DATE,
     )
 
     assert result.outcome == PipelineOutcome.NO_EVIDENCE
@@ -205,6 +217,7 @@ def test_pipeline_returns_conflict_when_contradiction_detected():
         model=model,
         knowledge_base=_KB,
         pre_retrieved_candidates=_CANDIDATES,
+        explicit_date=_EXPLICIT_HISTORICAL_DATE,
     )
 
     assert result.outcome == PipelineOutcome.CONFLICT
@@ -244,6 +257,7 @@ def test_pipeline_grounding_failure_routes_to_no_evidence():
         model=model,
         knowledge_base=_KB,
         pre_retrieved_candidates=_CANDIDATES,
+        explicit_date=_EXPLICIT_HISTORICAL_DATE,
     )
 
     assert result.outcome == PipelineOutcome.NO_EVIDENCE
