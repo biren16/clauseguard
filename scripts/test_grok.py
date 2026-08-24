@@ -1,3 +1,4 @@
+import json
 import os
 
 from dotenv import load_dotenv
@@ -7,12 +8,14 @@ from modules.evidence_model import GroqEvidenceModel
 
 load_dotenv(override=True)
 
-print(
-    "GROQ key loaded:",
-    bool(os.environ.get("GROQ_API_KEY")),
+
+assert os.environ.get("GROQ_API_KEY"), (
+    "GROQ_API_KEY is not loaded"
 )
 
+
 model = GroqEvidenceModel()
+
 
 response = model.generate(
     system_prompt=(
@@ -20,7 +23,14 @@ response = model.generate(
         '"status". The value must be "OK".'
     ),
     user_prompt="Are you working?",
+    json_mode=True,
 )
 
-print("GROQ RESPONSE:")
-print(response)
+
+parsed = json.loads(response)
+
+
+assert parsed == {"status": "OK"}
+
+
+print("GROQ PROVIDER TEST: PASSED")
