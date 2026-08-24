@@ -16,5 +16,7 @@ __pycache__/
 *.sqlite
 *.sqlite3
 
-# Generated knowledge base
-data/knowledge_base.json
+# NOTE: data/knowledge_base.json is intentionally TRACKED. Regenerating it
+# requires Gemini embedding credentials (modules/ingest.py) while runtime
+# retrieval is local BM25, so the derived artifact ships with the repository
+# to keep clean clones runnable without external credentials.
