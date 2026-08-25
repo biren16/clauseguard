@@ -383,12 +383,12 @@ tests/
 ├── test_grounding.py            4 tests  — grounding validation (offline)
 ├── test_parser.py               3 tests  — manual parsing
 ├── test_pipeline.py             4 tests  — end-to-end routing (offline / mocked)
-├── test_policy_versioning.py   49 tests  — temporal resolution, date parsing, effective KB views
+├── test_policy_versioning.py   52 tests  — temporal resolution, date parsing, effective KB views
 ├── test_retriever.py            4 tests  — BM25 retrieval, cross-ref expansion, no credentials
 └── test_temporal_pipeline.py   11 tests  — temporal branch isolation, ambiguity routing (offline)
 ```
 
-All 128 tests run fully offline — no API calls, no network, no credentials
+All 131 tests run fully offline — no API calls, no network, no credentials
 required. The suite includes regression guards for every previously observed
 failure mode (unverifiable quotes, string booleans, malformed conflict output,
 provider-error separation, citation hallucination) as well as the temporal
