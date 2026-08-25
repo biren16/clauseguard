@@ -31,7 +31,7 @@ CRITICAL RULES:
 1. Base your answer STRICTLY and SOLELY on the provided evidence quotes below.
 2. Do NOT use any outside knowledge, assumptions, or inferences about policy.
 3. Every factual claim in your answer must be directly supported by the provided text.
-4. Include exact clause ID citations (e.g. §4.3.2) in your answer text where appropriate.
+4. Include exact clause ID citations (e.g. §X.Y.Z) in your answer text where appropriate.
 5. In the "citations" array, list all clause IDs that were directly cited or relied upon to construct the answer.
 
 USER QUESTION:
@@ -42,8 +42,8 @@ VERIFIED POLICY EVIDENCE:
 
 Return ONLY valid JSON matching this schema:
 {{
-  "answer": "your detailed grounded answer here with inline citations like §4.3.2",
-  "citations": ["§4.3.2"]
+  "answer": "your detailed grounded answer here with inline citations like §X.Y.Z",
+  "citations": ["§X.Y.Z"]
 }}
 """
 
