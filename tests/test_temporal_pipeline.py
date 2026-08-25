@@ -88,16 +88,19 @@ def _clause(clause_id: str, part: str, section: str, text: str,
 MINI_KB = [
     _clause(
         "§4.3.2", "Part 4", "4.3 Reporting",
+        # Mirrors the real manual's Markdown shape: the operative value is
+        # already wrapped in **bold**, exactly the shape that exposed the
+        # nested-emphasis substitution bug.
         "A recipient must report any change in household composition, "
         "income, address, or the circumstances of any household member "
-        "within 10 calendar days of the change occurring.",
+        "within **10 calendar days** of the change occurring.",
         [],
     ),
     _clause(
         "§9.1.4", "Part 9", "9.1 Overpayments",
         "Where an overpayment has arisen from a change of circumstances, "
-        "and the recipient reported the change within the 30 calendar "
-        "days required under §4.3, no overpayment shall be established.",
+        "and the recipient reported the change within the **30 calendar "
+        "days** required under §4.3, no overpayment shall be established.",
         ["§4.3"],
     ),
 ]

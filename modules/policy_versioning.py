@@ -425,6 +425,17 @@ class AmendmentTextSubstitution:
     description: str
 
     def apply_to(self, kb: list[dict]) -> bool:
+        """
+        Apply the substitution without nesting Markdown emphasis.
+
+        The policy manual already wraps many normative values in
+        ``**bold**``. Replacing the bare value with a replacement string
+        that carries its own ``**`` markers would nest the markers
+        (producing ``****value****``), which corrupts quote verification
+        downstream. Already-emphasized occurrences are therefore replaced
+        first; any remaining plain occurrences are replaced afterwards.
+        """
+
         clause = next(
             (c for c in kb if c["id"] == self.target_id),
             None,
@@ -433,7 +444,16 @@ class AmendmentTextSubstitution:
         if clause is None:
             return False
 
-        clause["text"] = clause["text"].replace(self.old, self.new)
+        text = clause["text"]
+
+        emphasized_old = f"**{self.old}**"
+        if emphasized_old in text:
+            text = text.replace(emphasized_old, self.new)
+
+        if self.old in text:
+            text = text.replace(self.old, self.new)
+
+        clause["text"] = text
         return True
 
 

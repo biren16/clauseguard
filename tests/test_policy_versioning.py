@@ -227,10 +227,11 @@ def test_post_view_applies_all_amendments(real_kb):
     text_432 = clause(post, "§4.3.2")["text"]
     assert "14 calendar days" in text_432
     assert "10 calendar days" not in text_432
-    # The amendment replaces the figure "in both places where it occurs".
+    # The amendment replaces the figure "in both places where it occurs",
+    # each wrapped exactly once in Markdown emphasis.
     assert text_432.count("**14 calendar days**") == 2
 
-    assert "**14 calendar days**" in clause(post, "§9.1.4")["text"]
+    assert clause(post, "§9.1.4")["text"].count("**14 calendar days**") == 1
     assert "30 calendar days" not in clause(post, "§9.1.4")["text"]
 
     assert "**$175 per month**" in clause(post, "§6.4.1")["text"]
@@ -242,6 +243,80 @@ def test_post_view_applies_all_amendments(real_kb):
 
     assert "**15 per cent**" in clause(post, "§10.5.2")["text"]
     assert "20 per cent" not in clause(post, "§10.5.2")["text"]
+
+
+def test_post_view_contains_no_nested_markdown(real_kb):
+    """
+    Regression guard for the nested-emphasis bug: substituting a value
+    inside already-bolded source text used to produce '****value****',
+    which broke downstream quote verification. No effective clause may
+    contain doubled emphasis markers.
+    """
+
+    post = build_effective_kb(real_kb, PolicyVersion.POST_AMENDMENT)
+
+    malformed = [c["id"] for c in post if "****" in c["text"]]
+    assert malformed == []
+
+
+def test_effective_post_clauses_have_exact_amended_formatting(real_kb):
+    """
+    Assert the exact amended sentence shapes so that a transformation
+    which changes values but corrupts formatting cannot pass.
+    """
+
+    post = build_effective_kb(real_kb, PolicyVersion.POST_AMENDMENT)
+
+    assert (
+        "within **14 calendar days** of the change occurring, or within "
+        "**14 calendar days** of the recipient becoming aware of the "
+        "change"
+    ) in clause(post, "§4.3.2")["text"]
+
+    assert (
+        "reported the change within the **14 calendar days** required "
+        "under §4.3"
+    ) in clause(post, "§9.1.4")["text"]
+
+    assert (
+        "(a) the first **$175 per month** of household earnings"
+    ) in clause(post, "§6.4.1")["text"]
+
+
+def test_natural_quotes_verify_against_effective_post_text(real_kb):
+    """
+    Verifier-sanity regression: a faithful quote containing the amended
+    requirement MUST pass the existing quote-verification logic against
+    the REAL effective policy text (the live failure was §4.3.2 being
+    downgraded because every natural quote failed verification).
+    A fabricated requirement must still be rejected.
+    """
+
+    from modules.evidence import verify_quote
+
+    post = build_effective_kb(real_kb, PolicyVersion.POST_AMENDMENT)
+
+    assert verify_quote(
+        evidence_quote=(
+            "report any change in household composition, income, address, "
+            "or the circumstances of any household member within 14 "
+            "calendar days of the change occurring"
+        ),
+        clause_text=clause(post, "§4.3.2")["text"],
+    )
+
+    assert verify_quote(
+        evidence_quote=(
+            "the recipient reported the change within the "
+            "**14 calendar days** required under §4.3"
+        ),
+        clause_text=clause(post, "§9.1.4")["text"],
+    )
+
+    assert not verify_quote(
+        evidence_quote="within 99 calendar days of the change occurring",
+        clause_text=clause(post, "§4.3.2")["text"],
+    )
 
 
 def test_post_view_inserts_canonical_10503a_after_10503(real_kb):
